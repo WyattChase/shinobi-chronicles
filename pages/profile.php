@@ -64,6 +64,65 @@ function userProfile() {
         return;
     }
 
+    // Student/Sensei section
+    $student_message_max_length = 500;
+    $recruitment_message_max_length = 100;
+    if(!empty($_POST['update_student_recruitment'])) {
+        $recruitment_message = $system->clean($_POST['recruitment_message']);
+        try {
+            isset($_POST['accept_students']) ? $player->accept_students = true : $player->accept_students = false;
+            // Update recruitment settings
+            $success = SenseiManager::updateStudentRecruitment($player->user_id, $recruitment_message, $system);
+            if (!$success) {
+                throw new Exception('Something went wrong!');
+            }
+            $system->message("Recruitment settings updated!");
+        }
+        catch(Exception $e) {
+            $system->message($e->getMessage());
+        }
+        $system->printMessage();
+        $player->updateData();
+    }
+    if(!empty($_POST['update_student_settings'])) {
+        $student_message = $system->clean($_POST['student_message']);
+        $specialization = $system->clean($_POST['specialization']);
+        try {
+            // Update student settings
+            $success = SenseiManager::updateStudentSettings($player->user_id, $student_message, $specialization, $system);
+            if (!$success) {
+                throw new Exception('Something went wrong!');
+            }
+            $system->message("Student settings updated!");
+        }
+        catch(Exception $e) {
+            $system->message($e->getMessage());
+        }
+        $system->printMessage();
+    }
+
+    $sensei;
+    $students = [];
+    if ($player->sensei_id != 0) {
+        // get sensei table data
+        $sensei = SenseiManager::getSenseiByID($player->sensei_id, $system);
+        // get student boost
+        $sensei += SenseiManager::getStudentBoost($sensei['graduated']);
+        // get sensei user data
+        if (!SenseiManager::isSensei($player->user_id, $system)) {
+            $sensei += SenseiManager::getSenseiUserData($player->sensei_id, $system);
+        }
+    }
+    else if (SenseiManager::isSensei($player->user_id, $system)) {
+        // get sensei table data
+        $sensei = SenseiManager::getSenseiByID($player->user_id, $system);
+        // get student boost
+        $sensei += SenseiManager::getStudentBoost($sensei['graduated']);
+        // if sensei has students, get student data
+        if (count($sensei['students']) > 0) {
+            $students = SenseiManager::getStudentData($sensei['students'], $system);
+        }
+    }
     require 'templates/profile.php';
 }
 

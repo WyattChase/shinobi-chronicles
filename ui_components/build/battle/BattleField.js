@@ -1,4 +1,5 @@
 import { FighterAvatar } from "./FighterAvatar.js";
+import { PlayAttackActions } from "./PlayAttackActions.js";
 const transitionTimeMs = 600;
 export default function BattleField({
   player,
@@ -7,6 +8,7 @@ export default function BattleField({
   fighterLocations,
   selectedJutsu,
   isMovementPhase,
+  lastTurnLog,
   onTileSelect
 }) {
   debug('--- render(BattleField) ---');
@@ -29,7 +31,7 @@ export default function BattleField({
   return /*#__PURE__*/React.createElement("div", {
     className: `battleFieldContainer`,
     style: {
-      height: tileSize
+      height: tileSize + 10
     },
     ref: setContainerRef
   }, containerSize != null && /*#__PURE__*/React.createElement(BattleFieldContent, {
@@ -40,6 +42,7 @@ export default function BattleField({
     fighters: fighters,
     fighterLocations: fighterLocations,
     isMovementPhase: isMovementPhase,
+    lastTurnLog: lastTurnLog,
     selectedJutsu: selectedJutsu,
     onTileSelect: onTileSelect
   }));
@@ -53,6 +56,7 @@ function BattleFieldContent({
   fighters,
   fighterLocations,
   isMovementPhase,
+  lastTurnLog,
   selectedJutsu,
   onTileSelect
 }) {
@@ -203,6 +207,11 @@ function BattleFieldContent({
     fighterLocations: fighterLocations,
     disableTransitions: disableTransitions,
     getBoundingRectForTile: getBoundingRectForTile
+  }), /*#__PURE__*/React.createElement(PlayAttackActions, {
+    lastTurnLog: lastTurnLog,
+    tileSize: tileSize,
+    fighterLocations: fighterLocations,
+    getBoundingRectForTile: getBoundingRectForTile
   }));
 }
 
@@ -319,7 +328,7 @@ function BattleFieldFighters({
   disableTransitions,
   getBoundingRectForTile
 }) {
-  const fighterDisplaySize = 25;
+  const fighterDisplaySize = 30;
 
   const fightersForIds = ids => {
     return ids.map(id => fighters[id]).filter(Boolean);

@@ -11,6 +11,7 @@ require_once __DIR__ . '/BattleAttackHit.php';
 require_once __DIR__ . '/BattleActionProcessor.php';
 require_once __DIR__ . '/AttackTarget.php';
 require_once __DIR__ . '/FighterAction.php';
+require_once __DIR__ . '/../ActionResult.php';
 
 /*
  *
@@ -260,6 +261,20 @@ class BattleManagerV2 {
             return $this->battle->winner;
         }
         if($this->spectate) {
+            return $this->battle->winner;
+        }
+
+        if(!empty($_POST['forfeit'])) {
+            $this->player->health = 0;
+
+            $this->battle->current_turn_log->addFighterActionDescription(
+                $this->player,
+                $this->player->getName() . ' forfeits.'
+            );
+
+            $this->checkForWinner();
+            $this->updateData();
+
             return $this->battle->winner;
         }
 
@@ -805,8 +820,9 @@ class BattleManagerV2 {
                 );
             }
 
-            if(!$this->player->useJutsu($player_jutsu)) {
-                throw new Exception($this->system->message);
+            $result = $this->player->useJutsu($player_jutsu);
+            if($result->failed) {
+                throw new Exception($result->error_message);
             }
 
             // Check for weapon if non-BL taijutsu

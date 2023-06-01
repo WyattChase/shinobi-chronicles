@@ -146,6 +146,7 @@ class BattleApiPresenter {
         }
 
         return [
+            'turnNumber' => $turn_log->turn_number,
             'isMovementPhase' => $turn_log->turn_phase === BattleV2::TURN_TYPE_MOVEMENT,
             'isAttackPhase' => $turn_log->turn_phase === BattleV2::TURN_TYPE_ATTACK,
             'isPreparationPhase' => false,
@@ -171,6 +172,7 @@ class BattleApiPresenter {
                                 'targetName' => self::unescapeQuotes($hit->target_name),
                                 'damageType' => $hit->damage_type,
                                 'damage' => $hit->damage,
+                                'timeOccurred' => $hit->time_occurred
                             ];
                         }, $action_log->hits),
                         "effectHits" => array_map(function(EffectHitLog $hit) {

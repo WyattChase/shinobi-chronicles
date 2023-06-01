@@ -75,7 +75,7 @@ class System {
     // Variables for query() function to track things
     public $db_result;
     public string $db_query_type;
-    public int $db_last_num_rows;
+    public int $db_last_num_rows = 0;
     public int $db_last_affected_rows;
     public $db_last_insert_id;
 
@@ -267,7 +267,23 @@ class System {
             return false;
         }
 
-        $this->db_query_type = strtolower(substr($query, 0, strpos($query, ' ')));
+        $expected_query_types = [
+            'select',
+            'insert',
+            'update',
+            'delete'
+        ];
+        $normalized_query = trim(strtolower($query));
+
+        // default to first word
+        $this->db_query_type = explode(' ', $normalized_query)[0];
+
+        // double check for expected types in case of weird whitespace
+        foreach($expected_query_types as $query_type) {
+            if(str_starts_with($normalized_query, $query_type)) {
+                $this->db_query_type = $query_type;
+            }
+        }
 
         if(!$this->con) {
             $this->dbConnect();

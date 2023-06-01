@@ -1,14 +1,8 @@
 // @flow strict
 import { FighterAvatar } from "./FighterAvatar.js";
+import { PlayAttackActions} from "./PlayAttackActions.js";
 
-import type { FighterType, BattleFieldTileType, JutsuType } from "./battleSchema.js";
-
-type BoundingRect = {|
-    +top: number,
-    +left: number,
-    +width: number,
-    +height: number,
-|};
+import type { FighterType, BattleFieldTileType, JutsuType, BattleLogType, BoundingRect } from "./battleSchema.js";
 
 type Props = {|
     +player: FighterType,
@@ -17,6 +11,7 @@ type Props = {|
     +tiles: $ReadOnlyArray<BattleFieldTileType>,
     +selectedJutsu: ?JutsuType,
     +isMovementPhase: boolean,
+    +lastTurnLog: ?BattleLogType,
     +onTileSelect: (tileIndex: number) => void,
 |};
 
@@ -29,6 +24,7 @@ export default function BattleField({
     fighterLocations,
     selectedJutsu,
     isMovementPhase,
+    lastTurnLog,
     onTileSelect
 }: Props): React$Node {
     debug('--- render(BattleField) ---');
@@ -50,7 +46,7 @@ export default function BattleField({
     const tileSize = 80;
 
     return (
-        <div className={`battleFieldContainer`} style={{ height: tileSize }} ref={setContainerRef}>
+        <div className={`battleFieldContainer`} style={{ height: tileSize + 10 }} ref={setContainerRef}>
             {containerSize != null &&
                 <BattleFieldContent
                     containerSize={containerSize}
@@ -60,6 +56,7 @@ export default function BattleField({
                     fighters={fighters}
                     fighterLocations={fighterLocations}
                     isMovementPhase={isMovementPhase}
+                    lastTurnLog={lastTurnLog}
                     selectedJutsu={selectedJutsu}
                     onTileSelect={onTileSelect}
                 />
@@ -79,6 +76,7 @@ type BattleFieldContentProps = {|
     +fighters: { [ key: string ]: FighterType },
     +fighterLocations: { [ key: string ]: number },
     +isMovementPhase: boolean,
+    +lastTurnLog: ?BattleLogType,
     +selectedJutsu: ?JutsuType,
     +onTileSelect: (tileIndex: number) => void,
 |};
@@ -90,6 +88,7 @@ function BattleFieldContent({
     fighters,
     fighterLocations,
     isMovementPhase,
+    lastTurnLog,
     selectedJutsu,
     onTileSelect
 }: BattleFieldContentProps) {
@@ -274,6 +273,12 @@ function BattleFieldContent({
             disableTransitions={disableTransitions}
             getBoundingRectForTile={getBoundingRectForTile}
         />
+        <PlayAttackActions
+            lastTurnLog={lastTurnLog}
+            tileSize={tileSize}
+            fighterLocations={fighterLocations}
+            getBoundingRectForTile={getBoundingRectForTile}
+        />
     </div>;
 }
 
@@ -422,7 +427,7 @@ function BattleFieldFighters({
     disableTransitions,
     getBoundingRectForTile
 }: BattleFieldFightersProps) {
-    const fighterDisplaySize = 25;
+    const fighterDisplaySize = 30;
 
     const fightersForIds = (ids: $ReadOnlyArray<string>) => {
         return ids.map(id => fighters[ id ]).filter(Boolean)
@@ -558,8 +563,11 @@ function BattleFieldFighters({
     );
 }
 
+
+
 function debug(...contents) {
     //if(window.debug) {
     console.log(...contents);
     // }
 }
+

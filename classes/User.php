@@ -250,6 +250,9 @@ class User extends Fighter {
     public array $bloodline_offense_boosts;
     public array $bloodline_defense_boosts;
 
+    public ?int $sensei_id = null;
+    public bool $accept_students;
+
     public array $stats = [
         'ninjutsu_skill',
         'taijutsu_skill',
@@ -271,7 +274,7 @@ class User extends Fighter {
         if(!$user_id) {
             throw new Exception("Invalid user id!");
         }
-        
+
         $this->user_id = $user_id;
         $this->id = self::ENTITY_TYPE . ':' . $this->user_id;
     }
@@ -286,56 +289,65 @@ class User extends Fighter {
     public static function loadFromId(System $system, int $user_id, bool $remote_view = false): User {
         $user = new User($system, $user_id);
 
-        $result = $system->query("SELECT 
-            `user_id`, 
-            `user_name`, 
+        $result = $system->query("SELECT
+            `user_id`,
+            `user_name`,
             `ban_data`,
-            `ban_type`, 
-            `ban_expire`, 
-            `journal_ban`, 
-            `avatar_ban`, 
-            `song_ban`, 
+            `ban_type`,
+            `ban_expire`,
+            `journal_ban`,
+            `avatar_ban`,
+            `song_ban`,
             `last_login`,
             `regen_rate`,
-			`forbidden_seal`, 
-			`chat_color`, 
+			`forbidden_seal`,
+			`chat_color`,
 			`chat_effect`,
-			`staff_level`, 
-			`username_changes`, 
-			`support_level`, 
-			`special_mission`
+			`staff_level`,
+			`username_changes`,
+			`support_level`,
+			`special_mission`,
+            `rank`,
+            `sensei_id`,
+            `accept_students`,
+            `village`
 			FROM `users` WHERE `user_id`='$user_id' LIMIT 1"
         );
         if($system->db_last_num_rows == 0) {
             throw new Exception("User does not exist!");
         }
 
-        $result = $system->db_fetch($result);
+        $user_data = $system->db_fetch($result);
 
-        $user->user_name = $result['user_name'];
-        $user->username_changes = $result['username_changes'];
+        $user->user_name = $user_data['user_name'];
+        $user->username_changes = $user_data['username_changes'];
 
-        $user->staff_level = $result['staff_level'];
-        $user->support_level = $result['support_level'];
+        $user->staff_level = $user_data['staff_level'];
+        $user->support_level = $user_data['support_level'];
         $user->staff_manager = $user->loadStaffManager();
 
-        $user->ban_data = $user->loadBanData($result['ban_data']);
-        $user->ban_type = $result['ban_type'];
-        $user->ban_expire = $result['ban_expire'];
-        $user->journal_ban = $result['journal_ban'];
-        $user->avatar_ban = $result['avatar_ban'];
-        $user->song_ban = $result['song_ban'];
+        $user->ban_data = $user->loadBanData($user_data['ban_data']);
+        $user->ban_type = $user_data['ban_type'];
+        $user->ban_expire = $user_data['ban_expire'];
+        $user->journal_ban = $user_data['journal_ban'];
+        $user->avatar_ban = $user_data['avatar_ban'];
+        $user->song_ban = $user_data['song_ban'];
 
-        $user->last_login = $result['last_login'];
+        $user->last_login = $user_data['last_login'];
 
-        $user->regen_rate = $result['regen_rate'];
+        $user->regen_rate = $user_data['regen_rate'];
         $user->regen_boost = 0;
 
-        $user->setForbiddenSealFromDb($result['forbidden_seal'], $remote_view);
+        $user->setForbiddenSealFromDb($user_data['forbidden_seal'], $remote_view);
         $user->regen_boost += ceil($user->regen_rate * ($user->forbidden_seal->regen_boost / 100));
 
-        $user->chat_color = $result['chat_color'];
-        $user->chat_effect = $result['chat_effect'];
+        $user->chat_color = $user_data['chat_color'];
+        $user->chat_effect = $user_data['chat_effect'];
+
+        $user->sensei_id = $user_data['sensei_id'];
+        $user->village = new Village($system, $user_data['village']);
+        $user->rank_num = $user_data['rank'];
+        $user->accept_students = $user_data['accept_students'];
 
         //Todo: Remove this in a couple months, only a temporary measure to support current bans
         if($user->ban_type) {
@@ -415,7 +427,7 @@ class User extends Fighter {
         // Message blacklist
         $this->blacklist = [];
         $result = $this->system->query("SELECT `blocked_ids` FROM `blacklist` WHERE `user_id`='$this->user_id' LIMIT 1");
-        if($this->system->db_last_num_rows != 0) {
+        if($result->num_rows != 0) {
             $blacklist = $this->system->db_fetch($result);
             $this->blacklist = json_decode($blacklist['blocked_ids'], true);
             $this->original_blacklist = $this->blacklist;
@@ -814,6 +826,10 @@ class User extends Fighter {
         ) {
             $this->location->x--;
         }
+
+        // Sensei
+        $this->sensei_id = $user_data['sensei_id'];
+        $this->accept_students = $user_data['accept_students'];
 
         return;
     }
@@ -1253,7 +1269,7 @@ class User extends Fighter {
 
     /* function useJutsu
         pool check, calc exp, etc */
-    public function useJutsu(Jutsu $jutsu): bool {
+    public function useJutsu(Jutsu $jutsu): ActionResult {
         switch($jutsu->jutsu_type) {
             case 'ninjutsu':
             case 'genjutsu':
@@ -1263,12 +1279,11 @@ class User extends Fighter {
                 $energy_type = 'stamina';
                 break;
             default:
-                return false;
+                return ActionResult::failed("Invalid energy type!");
         }
 
         if($this->{$energy_type} < $jutsu->use_cost) {
-            $this->system->message("You do not have enough $energy_type!");
-            return false;
+            return ActionResult::failed("You do not have enough $energy_type!");
         }
 
         switch($jutsu->purchase_type) {
@@ -1276,14 +1291,12 @@ class User extends Fighter {
                 // Element check
                 if($jutsu->element && $jutsu->element != Jutsu::ELEMENT_NONE) {
                     if($this->elements) {
-                        if(array_search($jutsu->element, $this->elements) === false) {
-                            $this->system->message("You do not possess the elemental chakra for this jutsu!");
-                            return false;
+                        if(!in_array($jutsu->element, $this->elements)) {
+                            return ActionResult::failed("You do not possess the elemental chakra for this jutsu!");
                         }
                     }
                     else {
-                        $this->system->message("You do not possess the elemental chakra for this jutsu!");
-                        return false;
+                        return ActionResult::failed("You do not possess the elemental chakra for this jutsu!");
                     }
                 }
 
@@ -1317,11 +1330,10 @@ class User extends Fighter {
                 break;
 
             default:
-                $this->system->message("Invalid jutsu type!");
-                return false;
+                return ActionResult::failed("Invalid jutsu type!");
         }
 
-        return true;
+        return ActionResult::succeeded();
     }
 
     public function getMoney(): int {
@@ -1439,7 +1451,9 @@ class User extends Fighter {
 		`stealth` = '$this->stealth',
 		`exp` = '$this->exp',
 		`bloodline_id` = '$this->bloodline_id',
-		`bloodline_name` = '$this->bloodline_name',";
+		`bloodline_name` = '$this->bloodline_name',
+        `accept_students` = '" . (int)$this->accept_students . "',
+        `sensei_id` = '$this->sensei_id',";
         if($this->clan) {
             $query .= "`clan_id` = '{$this->clan->id}',
 			`clan_office`='{$this->clan_office}',";
